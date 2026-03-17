@@ -1,19 +1,12 @@
-<!DOCTYPE html>
-<html>
-<head>
-<title>Controle de Combustível</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-</head>
+:::
 
-<body style="font-family:Arial;text-align:center;margin-top:40px">
+<!DOCTYPE html> <html> <head> <title>Controle de Combustível</title> <meta name="viewport" content="width=device-width, initial-scale=1"> <style> body{ font-family:Arial; background:#f4f4f4; text-align:center; padding:20px; } .card{ background:white; padding:20px; border-radius:10px; margin:10px; box-shadow:0 2px 10px rgba(0,0,0,0.1); } button{ padding:12px 20px; border:none; border-radius:8px; background:#0077ff; color:white; font-size:16px; cursor:pointer; } input{ padding:10px; margin:5px; border-radius:5px; border:1px solid #ccc; } </style> </head> <body> <h1>🚗 Controle de Combustível</h1> <div class="card"> <h3>Registrar abastecimento</h3>
 
-<h1>🚗 Controle de Combustível</h1>
+<input id="km1" placeholder="KM inicial"><br>
+<input id="km2" placeholder="KM final"><br>
+<input id="litros" placeholder="Litros"><br>
+<input id="preco" placeholder="Preço por litro"><br>
 
-<p>Aplicativo publicado com sucesso.</p>
+<button onclick="calcular()">Calcular consumo</button>
 
-<button onclick="alert('Em breve painel completo')">
-Abrir Dashboard
-</button>
-
-</body>
-</html>
+</div> <div class="card"> <h3>Resultado</h3> <p id="resultado">Nenhum cálculo ainda</p> </div> <script> function calcular(){ let km1=parseFloat(document.getElementById("km1").value) let km2=parseFloat(document.getElementById("km2").value) let litros=parseFloat(document.getElementById("litros").value) let preco=parseFloat(document.getElementById("preco").value) let kmRodado=km2-km1 let consumo=kmRodado/litros let custo=(litros*preco) document.getElementById("resultado").innerHTML= "KM rodado: "+kmRodado+ "<br>Consumo: "+consumo.toFixed(2)+" km/L"+ "<br>Total gasto: R$ "+custo.toFixed(2) } </script> </body> </html> :::

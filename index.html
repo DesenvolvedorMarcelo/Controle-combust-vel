@@ -1,12 +1,116 @@
-:::
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Controle de Combustível</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="style.css" />
+  <meta name="theme-color" content="#0f172a" />
+</head>
+<body>
+  <div class="app">
+    <header class="topo">
+      <div>
+        <p class="subtitulo">Controle de Combustível</p>
+        <h1>Ford Ka 2026</h1>
+        <p class="descricao">Dashboard, cadastro e histórico no celular</p>
+      </div>
+      <div class="icone-topo">🚗</div>
+    </header>
 
-<!DOCTYPE html> <html> <head> <title>Controle de Combustível</title> <meta name="viewport" content="width=device-width, initial-scale=1"> <style> body{ font-family:Arial; background:#f4f4f4; text-align:center; padding:20px; } .card{ background:white; padding:20px; border-radius:10px; margin:10px; box-shadow:0 2px 10px rgba(0,0,0,0.1); } button{ padding:12px 20px; border:none; border-radius:8px; background:#0077ff; color:white; font-size:16px; cursor:pointer; } input{ padding:10px; margin:5px; border-radius:5px; border:1px solid #ccc; } </style> </head> <body> <h1>🚗 Controle de Combustível</h1> <div class="card"> <h3>Registrar abastecimento</h3>
+    <nav class="tabs">
+      <button class="tab ativo" data-aba="dashboard">Dashboard</button>
+      <button class="tab" data-aba="cadastro">Cadastro</button>
+      <button class="tab" data-aba="historico">Histórico</button>
+    </nav>
 
-<input id="km1" placeholder="KM inicial"><br>
-<input id="km2" placeholder="KM final"><br>
-<input id="litros" placeholder="Litros"><br>
-<input id="preco" placeholder="Preço por litro"><br>
+    <main>
+      <section id="dashboard" class="aba ativa">
+        <div class="cards">
+          <div class="card">
+            <span>Total gasto</span>
+            <strong id="totalGasto">R$ 0,00</strong>
+          </div>
+          <div class="card">
+            <span>KM rodados</span>
+            <strong id="kmRodados">0 km</strong>
+          </div>
+          <div class="card">
+            <span>Consumo médio</span>
+            <strong id="consumoMedio">0,00 km/L</strong>
+          </div>
+          <div class="card">
+            <span>Custo por KM</span>
+            <strong id="custoKm">R$ 0,00</strong>
+          </div>
+        </div>
 
-<button onclick="calcular()">Calcular consumo</button>
+        <div class="painel">
+          <div>
+            <p class="painel-label">Status inteligente</p>
+            <div id="statusBadge" class="badge cinza">Sem dados suficientes</div>
+          </div>
+          <div class="direita">
+            <p class="painel-label">Autonomia</p>
+            <strong id="autonomia">0 km</strong>
+            <small>tanque estimado de 51 L</small>
+          </div>
+        </div>
 
-</div> <div class="card"> <h3>Resultado</h3> <p id="resultado">Nenhum cálculo ainda</p> </div> <script> function calcular(){ let km1=parseFloat(document.getElementById("km1").value) let km2=parseFloat(document.getElementById("km2").value) let litros=parseFloat(document.getElementById("litros").value) let preco=parseFloat(document.getElementById("preco").value) let kmRodado=km2-km1 let consumo=kmRodado/litros let custo=(litros*preco) document.getElementById("resultado").innerHTML= "KM rodado: "+kmRodado+ "<br>Consumo: "+consumo.toFixed(2)+" km/L"+ "<br>Total gasto: R$ "+custo.toFixed(2) } </script> </body> </html> :::
+        <div class="painel">
+          <p class="painel-label">Consumo ao longo do tempo</p>
+          <div id="grafico" class="grafico"></div>
+        </div>
+      </section>
+
+      <section id="cadastro" class="aba">
+        <div class="painel">
+          <h2 id="tituloFormulario">Novo abastecimento</h2>
+          <p class="descricao-form">Os dados ficam salvos no navegador do aparelho.</p>
+
+          <input id="data" type="text" placeholder="Data (dd/mm/aaaa)" />
+          <input id="kmInicio" type="number" placeholder="KM início" />
+          <input id="kmFinal" type="number" placeholder="KM final" />
+          <input id="litros" type="number" step="0.01" placeholder="Litros" />
+          <input id="preco" type="number" step="0.01" placeholder="R$/Litro" />
+
+          <div class="previa">
+            <div class="mini-card">
+              <span>KM rodado</span>
+              <strong id="prevKm">0 km</strong>
+            </div>
+            <div class="mini-card">
+              <span>Valor total</span>
+              <strong id="prevValor">R$ 0,00</strong>
+            </div>
+            <div class="mini-card largura-total">
+              <span>Consumo estimado</span>
+              <strong id="prevConsumo">Dados insuficientes</strong>
+            </div>
+          </div>
+
+          <div class="acoes">
+            <button id="salvarBtn" class="btn primario">Salvar</button>
+            <button id="limparBtn" class="btn secundario">Limpar</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="historico" class="aba">
+        <div class="painel">
+          <div class="historico-topo">
+            <div>
+              <p class="painel-label">Abastecimentos salvos</p>
+            </div>
+            <button id="exportarBtn" class="btn secundario pequeno">Exportar backup</button>
+          </div>
+          <div id="listaHistorico" class="lista"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

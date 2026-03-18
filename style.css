@@ -606,3 +606,8 @@ input::placeholder {
   margin: 0 auto;
   padding: 16px;
 }
+.cards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}

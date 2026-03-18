@@ -31,18 +31,18 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Arial, sans-serif;
   background: linear-gradient(180deg, #dfe4ea 0%, #edf2f7 100%);
   color: var(--text);
-  min-height: 100dvh;
+  min-height: 50dvh;
 }
 
 .iphone-shell {
-  min-height: 100dvh;
+  min-height: 50dvh;
   display: flex;
   justify-content: center;
   padding: 12px;
 }
 
 .app-screen {
-  width: 100%;
+  width: 50%;
   max-width: 430px;
   min-height: calc(100dvh - 24px);
   margin: 0 auto;

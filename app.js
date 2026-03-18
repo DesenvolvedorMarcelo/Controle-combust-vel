@@ -25,13 +25,26 @@ const dadosIniciais = [
   }
 ];
 
+function getEl(id) {
+  return document.getElementById(id);
+}
+
 function carregarDados() {
-  const salvo = localStorage.getItem(STORAGE_KEY);
-  return salvo ? JSON.parse(salvo) : dadosIniciais;
+  try {
+    const salvo = localStorage.getItem(STORAGE_KEY);
+    return salvo ? JSON.parse(salvo) : [...dadosIniciais];
+  } catch (error) {
+    console.error("Erro ao carregar dados:", error);
+    return [...dadosIniciais];
+  }
 }
 
 function salvarDados(dados) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(dados));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(dados));
+  } catch (error) {
+    console.error("Erro ao salvar dados:", error);
+  }
 }
 
 function formatarMoeda(valor) {
@@ -48,53 +61,90 @@ function formatarNumero(valor, casas = 1) {
   });
 }
 
+function converterDataParaDate(data) {
+  if (!data) return new Date(0);
+
+  if (data.includes("/")) {
+    const [dia, mes, ano] = data.split("/").map(Number);
+    return new Date(ano, mes - 1, dia);
+  }
+
+  if (data.includes("-")) {
+    const [ano, mes, dia] = data.split("-").map(Number);
+    return new Date(ano, mes - 1, dia);
+  }
+
+  return new Date(data);
+}
+
+function normalizarData(data) {
+  if (!data) return "";
+
+  if (data.includes("-")) {
+    const [ano, mes, dia] = data.split("-");
+    return `${dia}/${mes}/${ano}`;
+  }
+
+  return data;
+}
+
 function processar(dados) {
   return dados
     .map((item) => {
-      const kmRodado = Number(item.kmFinal) - Number(item.kmInicio);
-      const litros = Number(item.litros);
-      const preco = Number(item.preco);
+      const kmInicio = Number(item.kmInicio || 0);
+      const kmFinal = Number(item.kmFinal || 0);
+      const litros = Number(item.litros || 0);
+      const preco = Number(item.preco || 0);
       const tanquePercentual = Math.max(0, Math.min(100, Number(item.tanquePercentual || 0)));
+
+      const kmRodado = kmFinal - kmInicio;
       const consumo = kmRodado >= 50 && litros >= 5 ? kmRodado / litros : null;
       const valorTotal = litros * preco;
       const custoKm = kmRodado > 0 ? valorTotal / kmRodado : null;
 
       return {
         ...item,
-        kmRodado,
+        data: normalizarData(item.data),
+        kmInicio,
+        kmFinal,
         litros,
         preco,
         tanquePercentual,
+        kmRodado,
         consumo,
         valorTotal,
         custoKm
       };
     })
-    .sort((a, b) => {
-      const [da, ma, aa] = a.data.split("/").map(Number);
-      const [db, mb, ab] = b.data.split("/").map(Number);
-      return new Date(ab, mb - 1, db) - new Date(aa, ma - 1, da);
-    });
+    .sort((a, b) => converterDataParaDate(b.data) - converterDataParaDate(a.data));
 }
 
 function statusClasse(item) {
-  const texto = item.statusPlanilha || "";
-  if (texto.includes("OK") || texto.includes("✅")) return "status-green";
-  if (texto.includes("❌") || texto.toLowerCase().includes("alto")) return "status-red";
+  const texto = String(item.statusPlanilha || "").toLowerCase();
+
+  if (texto.includes("ok") || texto.includes("✅")) return "status-green";
+  if (texto.includes("❌") || texto.includes("alto")) return "status-red";
   return "status-yellow";
 }
 
 function atualizarGauges(consumoMedio, tanqueAtual) {
-  const percConsumo = Math.max(0, Math.min((consumoMedio / 15) * 100, 100));
-  const grauConsumo = (percConsumo * 1.8) - 180;
-  const grauTanque = (tanqueAtual * 1.8) - 180;
+  const needleConsumo = getEl("needleConsumo");
+  const needleTanque = getEl("needleTanque");
 
-  document.getElementById("needleConsumo").style.transform = `rotate(${grauConsumo}deg)`;
-  document.getElementById("needleTanque").style.transform = `rotate(${grauTanque}deg)`;
+  if (!needleConsumo || !needleTanque) return;
+
+  const percConsumo = Math.max(0, Math.min((consumoMedio / 15) * 100, 100));
+  const grauConsumo = percConsumo * 1.8 - 180;
+  const grauTanque = tanqueAtual * 1.8 - 180;
+
+  needleConsumo.style.transform = `rotate(${grauConsumo}deg)`;
+  needleTanque.style.transform = `rotate(${grauTanque}deg)`;
 }
 
 function atualizarGraficoSemanal(consumos) {
-  const weeklyChart = document.getElementById("weeklyChart");
+  const weeklyChart = getEl("weeklyChart");
+  if (!weeklyChart) return;
+
   weeklyChart.innerHTML = "";
 
   const dias = ["SEG", "TER", "QUA", "QUI", "SEX", "SÁB", "DOM"];
@@ -103,7 +153,7 @@ function atualizarGraficoSemanal(consumos) {
     valor: consumos[idx] || 0
   }));
 
-  const max = Math.max(...semana.map(i => i.valor), 1);
+  const max = Math.max(...semana.map((i) => i.valor), 1);
 
   semana.forEach((item) => {
     const col = document.createElement("div");
@@ -124,7 +174,9 @@ function atualizarGraficoSemanal(consumos) {
 }
 
 function atualizarHistorico(linhas) {
-  const lista = document.getElementById("listaAbastecimentos");
+  const lista = getEl("listaAbastecimentos");
+  if (!lista) return;
+
   lista.innerHTML = "";
 
   if (!linhas.length) {
@@ -173,24 +225,33 @@ function atualizarHistorico(linhas) {
 function atualizarDashboard() {
   const linhas = processar(carregarDados());
 
-  const totalGasto = linhas.reduce((s, i) => s + i.valorTotal, 0);
-  const kmRodados = linhas.reduce((s, i) => s + Math.max(i.kmRodado, 0), 0);
-  const consumosValidos = linhas.filter(i => i.consumo !== null).map(i => i.consumo);
+  const totalGasto = linhas.reduce((soma, item) => soma + item.valorTotal, 0);
+  const kmRodados = linhas.reduce((soma, item) => soma + Math.max(item.kmRodado, 0), 0);
+  const consumosValidos = linhas.filter((item) => item.consumo !== null).map((item) => item.consumo);
   const consumoMedio = consumosValidos.length
-    ? consumosValidos.reduce((s, v) => s + v, 0) / consumosValidos.length
+    ? consumosValidos.reduce((soma, valor) => soma + valor, 0) / consumosValidos.length
     : 0;
+
   const custoKm = kmRodados > 0 ? totalGasto / kmRodados : 0;
   const ultimo = linhas[0] || null;
   const tanqueAtual = ultimo ? ultimo.tanquePercentual : 0;
   const gastoMes = totalGasto;
 
-  document.getElementById("gastosMes").textContent = formatarMoeda(gastoMes);
-  document.getElementById("kmRodadosCard").innerHTML = `${formatarNumero(kmRodados, 0)} <span>km</span>`;
-  document.getElementById("consumoMedio").textContent = formatarNumero(consumoMedio);
-  document.getElementById("tanqueAtual").textContent = formatarNumero(tanqueAtual, 0);
-  document.getElementById("ultimoLitros").textContent = ultimo ? formatarNumero(ultimo.litros, 0) : "0";
-  document.getElementById("ultimoValor").textContent = ultimo ? formatarMoeda(ultimo.valorTotal) : formatarMoeda(0);
-  document.getElementById("custoKm").textContent = formatarMoeda(custoKm);
+  const gastosMes = getEl("gastosMes");
+  const kmRodadosCard = getEl("kmRodadosCard");
+  const consumoMedioEl = getEl("consumoMedio");
+  const tanqueAtualEl = getEl("tanqueAtual");
+  const ultimoLitros = getEl("ultimoLitros");
+  const ultimoValor = getEl("ultimoValor");
+  const custoKmEl = getEl("custoKm");
+
+  if (gastosMes) gastosMes.textContent = formatarMoeda(gastoMes);
+  if (kmRodadosCard) kmRodadosCard.innerHTML = `${formatarNumero(kmRodados, 0)} <span>km</span>`;
+  if (consumoMedioEl) consumoMedioEl.textContent = formatarNumero(consumoMedio);
+  if (tanqueAtualEl) tanqueAtualEl.textContent = formatarNumero(tanqueAtual, 0);
+  if (ultimoLitros) ultimoLitros.textContent = ultimo ? formatarNumero(ultimo.litros, 0) : "0";
+  if (ultimoValor) ultimoValor.textContent = ultimo ? formatarMoeda(ultimo.valorTotal) : formatarMoeda(0);
+  if (custoKmEl) custoKmEl.textContent = formatarMoeda(custoKm);
 
   atualizarGauges(consumoMedio, tanqueAtual);
   atualizarGraficoSemanal(consumosValidos);
@@ -198,42 +259,50 @@ function atualizarDashboard() {
 }
 
 function atualizarPrevia() {
-  const kmInicio = Number(document.getElementById("kmInicio").value || 0);
-  const kmFinal = Number(document.getElementById("kmFinal").value || 0);
-  const litros = Number(document.getElementById("litros").value || 0);
-  const preco = Number(document.getElementById("preco").value || 0);
+  const kmInicio = Number(getEl("kmInicio")?.value || 0);
+  const kmFinal = Number(getEl("kmFinal")?.value || 0);
+  const litros = Number(getEl("litros")?.value || 0);
+  const preco = Number(getEl("preco")?.value || 0);
 
   const kmRodado = kmFinal - kmInicio;
   const valorTotal = litros * preco;
   const consumo = kmRodado >= 50 && litros >= 5 ? kmRodado / litros : null;
 
-  document.getElementById("prevKm").textContent = `${formatarNumero(kmRodado, 0)} km`;
-  document.getElementById("prevValor").textContent = formatarMoeda(valorTotal);
-  document.getElementById("prevConsumo").textContent = consumo
-    ? `${formatarNumero(consumo)} km/L`
-    : "Dados insuficientes";
+  const prevKm = getEl("prevKm");
+  const prevValor = getEl("prevValor");
+  const prevConsumo = getEl("prevConsumo");
+
+  if (prevKm) prevKm.textContent = `${formatarNumero(kmRodado, 0)} km`;
+  if (prevValor) prevValor.textContent = formatarMoeda(valorTotal);
+  if (prevConsumo) {
+    prevConsumo.textContent = consumo
+      ? `${formatarNumero(consumo)} km/L`
+      : "Dados insuficientes";
+  }
 }
 
 function limparFormulario() {
   editandoId = null;
-  document.getElementById("data").value = "";
-  document.getElementById("kmInicio").value = "";
-  document.getElementById("kmFinal").value = "";
-  document.getElementById("litros").value = "";
-  document.getElementById("preco").value = "";
-  document.getElementById("tanquePercentual").value = "";
+
+  if (getEl("data")) getEl("data").value = "";
+  if (getEl("kmInicio")) getEl("kmInicio").value = "";
+  if (getEl("kmFinal")) getEl("kmFinal").value = "";
+  if (getEl("litros")) getEl("litros").value = "";
+  if (getEl("preco")) getEl("preco").value = "";
+  if (getEl("tanquePercentual")) getEl("tanquePercentual").value = "";
+
   atualizarPrevia();
 }
 
 function salvarRegistro() {
-  const data = document.getElementById("data").value.trim();
-  const kmInicio = Number(document.getElementById("kmInicio").value);
-  const kmFinal = Number(document.getElementById("kmFinal").value);
-  const litros = Number(document.getElementById("litros").value);
-  const preco = Number(document.getElementById("preco").value);
-  const tanquePercentual = Number(document.getElementById("tanquePercentual").value || 0);
+  const data = getEl("data")?.value?.trim() || "";
+  const kmInicio = Number(getEl("kmInicio")?.value || 0);
+  const kmFinal = Number(getEl("kmFinal")?.value || 0);
+  const litros = Number(getEl("litros")?.value || 0);
+  const preco = Number(getEl("preco")?.value || 0);
+  const tanquePercentual = Number(getEl("tanquePercentual")?.value || 0);
 
-  if (!data || !kmInicio || !kmFinal || !litros || !preco) {
+  if (!data || kmInicio <= 0 || kmFinal <= 0 || litros <= 0 || preco <= 0) {
     alert("Preencha os campos obrigatórios.");
     return;
   }
@@ -247,7 +316,7 @@ function salvarRegistro() {
 
   const registro = {
     id: editandoId || Date.now(),
-    data,
+    data: normalizarData(data),
     kmInicio,
     kmFinal,
     litros,
@@ -257,7 +326,7 @@ function salvarRegistro() {
   };
 
   if (editandoId) {
-    dados = dados.map((item) => item.id === editandoId ? registro : item);
+    dados = dados.map((item) => (item.id === editandoId ? registro : item));
   } else {
     dados.unshift(registro);
   }
@@ -270,47 +339,76 @@ function salvarRegistro() {
 
 function editarRegistro(id) {
   const dados = carregarDados();
-  const item = dados.find(r => r.id === id);
+  const item = dados.find((registro) => registro.id === id);
   if (!item) return;
 
   editandoId = id;
-  document.getElementById("data").value = item.data;
-  document.getElementById("kmInicio").value = item.kmInicio;
-  document.getElementById("kmFinal").value = item.kmFinal;
-  document.getElementById("litros").value = item.litros;
-  document.getElementById("preco").value = item.preco;
-  document.getElementById("tanquePercentual").value = item.tanquePercentual || 0;
+
+  if (getEl("data")) {
+    if (String(item.data).includes("/")) {
+      const [dia, mes, ano] = item.data.split("/");
+      getEl("data").value = `${ano}-${mes.padStart(2, "0")}-${dia.padStart(2, "0")}`;
+    } else {
+      getEl("data").value = item.data;
+    }
+  }
+
+  if (getEl("kmInicio")) getEl("kmInicio").value = item.kmInicio;
+  if (getEl("kmFinal")) getEl("kmFinal").value = item.kmFinal;
+  if (getEl("litros")) getEl("litros").value = item.litros;
+  if (getEl("preco")) getEl("preco").value = item.preco;
+  if (getEl("tanquePercentual")) getEl("tanquePercentual").value = item.tanquePercentual || 0;
+
   atualizarPrevia();
   ativarAba("relatorios");
 }
 
 function excluirRegistro(id) {
   if (!confirm("Deseja excluir este abastecimento?")) return;
-  const dados = carregarDados().filter(item => item.id !== id);
+
+  const dados = carregarDados().filter((item) => item.id !== id);
   salvarDados(dados);
   atualizarDashboard();
 }
 
 function ativarAba(nome) {
-  document.querySelectorAll(".aba").forEach(el => el.classList.remove("ativa"));
-  document.querySelectorAll(".nav-btn").forEach(el => el.classList.remove("ativo"));
+  document.querySelectorAll(".aba").forEach((el) => el.classList.remove("ativa"));
+  document.querySelectorAll(".nav-btn").forEach((el) => el.classList.remove("ativo"));
 
-  document.getElementById(`aba-${nome}`).classList.add("ativa");
-  document.querySelector(`.nav-btn[data-aba="${nome}"]`).classList.add("ativo");
+  const aba = getEl(`aba-${nome}`);
+  const botao = document.querySelector(`.nav-btn[data-aba="${nome}"]`);
+
+  if (aba) aba.classList.add("ativa");
+  if (botao) botao.classList.add("ativo");
 }
 
-document.querySelectorAll(".nav-btn").forEach((btn) => {
-  btn.addEventListener("click", () => ativarAba(btn.dataset.aba));
-});
+function iniciarApp() {
+  document.querySelectorAll(".nav-btn").forEach((btn) => {
+    btn.addEventListener("click", () => ativarAba(btn.dataset.aba));
+  });
 
-["kmInicio", "kmFinal", "litros", "preco", "tanquePercentual"].forEach((id) => {
-  document.getElementById(id).addEventListener("input", atualizarPrevia);
-});
+  ["kmInicio", "kmFinal", "litros", "preco", "tanquePercentual"].forEach((id) => {
+    const campo = getEl(id);
+    if (campo) {
+      campo.addEventListener("input", atualizarPrevia);
+    }
+  });
 
-document.getElementById("salvarBtn").addEventListener("click", salvarRegistro);
+  const salvarBtn = getEl("salvarBtn");
+  if (salvarBtn) {
+    salvarBtn.addEventListener("click", salvarRegistro);
+  }
 
-window.editarRegistro = editarRegistro;
-window.excluirRegistro = excluirRegistro;
+  window.editarRegistro = editarRegistro;
+  window.excluirRegistro = excluirRegistro;
 
-atualizarPrevia();
-atualizarDashboard();
+  atualizarPrevia();
+  atualizarDashboard();
+
+  const primeiraAba = document.querySelector(".aba.ativa");
+  if (!primeiraAba) {
+    ativarAba("inicio");
+  }
+}
+
+document.addEventListener("DOMContentLoaded", iniciarApp);

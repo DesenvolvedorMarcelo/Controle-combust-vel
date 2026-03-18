@@ -120,3 +120,12 @@
   <button onclick="trocarTela('abastecimento')">Abastecimentos</button>
   <button onclick="trocarTela('config')">Config</button>
 </div>
+<script>
+function trocarTela(nome) {
+  document.querySelectorAll('.tela').forEach(t => {
+    t.classList.remove('ativa');
+  });
+
+  document.getElementById('tela-' + nome).classList.add('ativa');
+}
+</script>

@@ -777,7 +777,7 @@ canvas {
   }
 }
 
-@media (max-width: 380px) {
+@media (max-width: 310px) {
   .top-cards,
   .gauges-grid,
   .bottom-cards,

@@ -1,4 +1,5 @@
-const chaveStorage = "fuel-app-data";
+const STORAGE_KEY = "fuel-app-premium";
+
 let editandoId = null;
 
 const dadosIniciais = [
@@ -9,7 +10,8 @@ const dadosIniciais = [
     kmFinal: 163224,
     litros: 28.99,
     preco: 4.29,
-    statusPlanilha: "❌ Consumo muito alto, verificar",
+    tanquePercentual: 45,
+    statusPlanilha: "❌ Consumo muito alto, verificar"
   },
   {
     id: 2,
@@ -18,30 +20,31 @@ const dadosIniciais = [
     kmFinal: 163666,
     litros: 51,
     preco: 5.0,
-    statusPlanilha: "✅ OK",
-  },
+    tanquePercentual: 82,
+    statusPlanilha: "✅ OK"
+  }
 ];
 
 function carregarDados() {
-  const salvo = localStorage.getItem(chaveStorage);
+  const salvo = localStorage.getItem(STORAGE_KEY);
   return salvo ? JSON.parse(salvo) : dadosIniciais;
 }
 
 function salvarDados(dados) {
-  localStorage.setItem(chaveStorage, JSON.stringify(dados));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(dados));
 }
 
-function formatarMoeda(v) {
-  return Number(v || 0).toLocaleString("pt-BR", {
+function formatarMoeda(valor) {
+  return Number(valor || 0).toLocaleString("pt-BR", {
     style: "currency",
-    currency: "BRL",
+    currency: "BRL"
   });
 }
 
-function formatarNumero(v, casas = 2) {
-  return Number(v || 0).toLocaleString("pt-BR", {
+function formatarNumero(valor, casas = 1) {
+  return Number(valor || 0).toLocaleString("pt-BR", {
     minimumFractionDigits: casas,
-    maximumFractionDigits: casas,
+    maximumFractionDigits: casas
   });
 }
 
@@ -51,10 +54,21 @@ function processar(dados) {
       const kmRodado = Number(item.kmFinal) - Number(item.kmInicio);
       const litros = Number(item.litros);
       const preco = Number(item.preco);
+      const tanquePercentual = Math.max(0, Math.min(100, Number(item.tanquePercentual || 0)));
       const consumo = kmRodado >= 50 && litros >= 5 ? kmRodado / litros : null;
       const valorTotal = litros * preco;
       const custoKm = kmRodado > 0 ? valorTotal / kmRodado : null;
-      return { ...item, kmRodado, consumo, valorTotal, custoKm };
+
+      return {
+        ...item,
+        kmRodado,
+        litros,
+        preco,
+        tanquePercentual,
+        consumo,
+        valorTotal,
+        custoKm
+      };
     })
     .sort((a, b) => {
       const [da, ma, aa] = a.data.split("/").map(Number);
@@ -63,111 +77,72 @@ function processar(dados) {
     });
 }
 
-function atualizarDashboard() {
-  const dados = processar(carregarDados());
-
-  const totalGasto = dados.reduce((s, i) => s + i.valorTotal, 0);
-  const totalLitros = dados.reduce((s, i) => s + Number(i.litros), 0);
-  const kmRodados = dados.reduce((s, i) => s + Math.max(i.kmRodado, 0), 0);
-  const consumosValidos = dados.filter((i) => i.consumo !== null).map((i) => i.consumo);
-  const consumoMedio = consumosValidos.length
-    ? consumosValidos.reduce((s, v) => s + v, 0) / consumosValidos.length
-    : 0;
-  const custoKm = kmRodados > 0 ? totalGasto / kmRodados : 0;
-  const autonomia = consumoMedio * 51;
-
-  document.getElementById("totalGasto").textContent = formatarMoeda(totalGasto);
-  document.getElementById("kmRodados").textContent = `${formatarNumero(kmRodados, 0)} km`;
-  document.getElementById("consumoMedio").textContent = `${formatarNumero(consumoMedio)} km/L`;
-  document.getElementById("custoKm").textContent = formatarMoeda(custoKm);
-  document.getElementById("autonomia").textContent = `${formatarNumero(autonomia, 0)} km`;
-
-  const badge = document.getElementById("statusBadge");
-  badge.className = "badge";
-
-  if (consumoMedio === 0) {
-    badge.textContent = "Sem dados suficientes";
-    badge.classList.add("cinza");
-  } else if (consumoMedio < 5) {
-    badge.textContent = "Alto consumo";
-    badge.classList.add("vermelho");
-  } else if (consumoMedio < 10) {
-    badge.textContent = "Consumo médio";
-    badge.classList.add("amarelo");
-  } else {
-    badge.textContent = "Econômico";
-    badge.classList.add("verde");
-  }
-
-  atualizarGrafico(dados);
-  atualizarHistorico(dados);
+function statusClasse(item) {
+  const texto = item.statusPlanilha || "";
+  if (texto.includes("OK") || texto.includes("✅")) return "status-green";
+  if (texto.includes("❌") || texto.toLowerCase().includes("alto")) return "status-red";
+  return "status-yellow";
 }
 
-function atualizarGrafico(dados) {
-  const grafico = document.getElementById("grafico");
-  grafico.innerHTML = "";
+function atualizarGauges(consumoMedio, tanqueAtual) {
+  const percConsumo = Math.max(0, Math.min((consumoMedio / 15) * 100, 100));
+  const grauConsumo = (percConsumo * 1.8) - 180;
+  const grauTanque = (tanqueAtual * 1.8) - 180;
 
-  const validos = dados.filter((i) => i.consumo !== null);
-  const max = Math.max(...validos.map((i) => i.consumo), 1);
+  document.getElementById("needleConsumo").style.transform = `rotate(${grauConsumo}deg)`;
+  document.getElementById("needleTanque").style.transform = `rotate(${grauTanque}deg)`;
+}
 
-  if (!dados.length) {
-    grafico.innerHTML = "<p>Sem registros.</p>";
-    return;
-  }
+function atualizarGraficoSemanal(consumos) {
+  const weeklyChart = document.getElementById("weeklyChart");
+  weeklyChart.innerHTML = "";
 
-  dados.forEach((item) => {
-    const wrap = document.createElement("div");
-    wrap.className = "barra-wrap";
+  const dias = ["SEG", "TER", "QUA", "QUI", "SEX", "SÁB", "DOM"];
+  const semana = dias.map((dia, idx) => ({
+    dia,
+    valor: consumos[idx] || 0
+  }));
 
-    const rotulo = document.createElement("div");
-    rotulo.className = "rotulo";
-    rotulo.textContent = item.data.slice(0, 5);
+  const max = Math.max(...semana.map(i => i.valor), 1);
 
-    const barra = document.createElement("div");
-    barra.className = "barra";
-    barra.style.height = `${item.consumo ? Math.max((item.consumo / max) * 120, 8) : 8}px`;
+  semana.forEach((item) => {
+    const col = document.createElement("div");
+    col.className = "bar-col";
 
-    const valor = document.createElement("div");
-    valor.className = "valor-barra";
-    valor.textContent = item.consumo ? formatarNumero(item.consumo, 1) : "-";
+    const bar = document.createElement("div");
+    bar.className = "bar";
+    bar.style.height = `${Math.max((item.valor / max) * 100, item.valor ? 22 : 6)}%`;
 
-    wrap.appendChild(rotulo);
-    wrap.appendChild(barra);
-    wrap.appendChild(valor);
+    const label = document.createElement("div");
+    label.className = "bar-label";
+    label.textContent = item.dia;
 
-    grafico.appendChild(wrap);
+    col.appendChild(bar);
+    col.appendChild(label);
+    weeklyChart.appendChild(col);
   });
 }
 
-function atualizarHistorico(dados) {
-  const lista = document.getElementById("listaHistorico");
+function atualizarHistorico(linhas) {
+  const lista = document.getElementById("listaAbastecimentos");
   lista.innerHTML = "";
 
-  if (!dados.length) {
-    lista.innerHTML = "<p>Nenhum abastecimento salvo.</p>";
+  if (!linhas.length) {
+    lista.innerHTML = "<div class='panel-card'>Nenhum abastecimento salvo.</div>";
     return;
   }
 
-  dados.forEach((item) => {
+  linhas.forEach((item) => {
     const div = document.createElement("div");
-    div.className = "item";
-
-    let classeStatus = "badge cinza";
-    if ((item.statusPlanilha || "").includes("OK") || (item.statusPlanilha || "").includes("salvo")) {
-      classeStatus = "badge verde";
-    } else if ((item.statusPlanilha || "").includes("alto") || (item.statusPlanilha || "").includes("❌")) {
-      classeStatus = "badge vermelho";
-    } else if ((item.statusPlanilha || "").includes("⚠️")) {
-      classeStatus = "badge amarelo";
-    }
+    div.className = "history-item";
 
     div.innerHTML = `
-      <div class="item-topo">
+      <div class="history-top">
         <div>${item.data}</div>
         <div>${formatarMoeda(item.valorTotal)}</div>
       </div>
 
-      <div class="item-grid">
+      <div class="history-grid">
         <div>
           <span>KM rodado</span>
           <strong>${formatarNumero(item.kmRodado, 0)} km</strong>
@@ -182,11 +157,11 @@ function atualizarHistorico(dados) {
         </div>
       </div>
 
-      <div class="item-acoes">
-        <div class="${classeStatus}">${item.statusPlanilha || "Sem status"}</div>
-        <div class="item-botoes">
-          <button class="btn-editar" onclick="editarRegistro(${item.id})">Editar</button>
-          <button class="btn-excluir" onclick="excluirRegistro(${item.id})">Excluir</button>
+      <div class="history-footer">
+        <div class="status-pill ${statusClasse(item)}">${item.statusPlanilha || "Sem status"}</div>
+        <div class="action-group">
+          <button class="action-btn edit-btn" onclick="editarRegistro(${item.id})">Editar</button>
+          <button class="action-btn delete-btn" onclick="excluirRegistro(${item.id})">Excluir</button>
         </div>
       </div>
     `;
@@ -195,15 +170,31 @@ function atualizarHistorico(dados) {
   });
 }
 
-function limparFormulario() {
-  editandoId = null;
-  document.getElementById("tituloFormulario").textContent = "Novo abastecimento";
-  document.getElementById("data").value = "";
-  document.getElementById("kmInicio").value = "";
-  document.getElementById("kmFinal").value = "";
-  document.getElementById("litros").value = "";
-  document.getElementById("preco").value = "";
-  atualizarPrevia();
+function atualizarDashboard() {
+  const linhas = processar(carregarDados());
+
+  const totalGasto = linhas.reduce((s, i) => s + i.valorTotal, 0);
+  const kmRodados = linhas.reduce((s, i) => s + Math.max(i.kmRodado, 0), 0);
+  const consumosValidos = linhas.filter(i => i.consumo !== null).map(i => i.consumo);
+  const consumoMedio = consumosValidos.length
+    ? consumosValidos.reduce((s, v) => s + v, 0) / consumosValidos.length
+    : 0;
+  const custoKm = kmRodados > 0 ? totalGasto / kmRodados : 0;
+  const ultimo = linhas[0] || null;
+  const tanqueAtual = ultimo ? ultimo.tanquePercentual : 0;
+  const gastoMes = totalGasto;
+
+  document.getElementById("gastosMes").textContent = formatarMoeda(gastoMes);
+  document.getElementById("kmRodadosCard").innerHTML = `${formatarNumero(kmRodados, 0)} <span>km</span>`;
+  document.getElementById("consumoMedio").textContent = formatarNumero(consumoMedio);
+  document.getElementById("tanqueAtual").textContent = formatarNumero(tanqueAtual, 0);
+  document.getElementById("ultimoLitros").textContent = ultimo ? formatarNumero(ultimo.litros, 0) : "0";
+  document.getElementById("ultimoValor").textContent = ultimo ? formatarMoeda(ultimo.valorTotal) : formatarMoeda(0);
+  document.getElementById("custoKm").textContent = formatarMoeda(custoKm);
+
+  atualizarGauges(consumoMedio, tanqueAtual);
+  atualizarGraficoSemanal(consumosValidos);
+  atualizarHistorico(linhas);
 }
 
 function atualizarPrevia() {
@@ -223,15 +214,27 @@ function atualizarPrevia() {
     : "Dados insuficientes";
 }
 
+function limparFormulario() {
+  editandoId = null;
+  document.getElementById("data").value = "";
+  document.getElementById("kmInicio").value = "";
+  document.getElementById("kmFinal").value = "";
+  document.getElementById("litros").value = "";
+  document.getElementById("preco").value = "";
+  document.getElementById("tanquePercentual").value = "";
+  atualizarPrevia();
+}
+
 function salvarRegistro() {
   const data = document.getElementById("data").value.trim();
   const kmInicio = Number(document.getElementById("kmInicio").value);
   const kmFinal = Number(document.getElementById("kmFinal").value);
   const litros = Number(document.getElementById("litros").value);
   const preco = Number(document.getElementById("preco").value);
+  const tanquePercentual = Number(document.getElementById("tanquePercentual").value || 0);
 
   if (!data || !kmInicio || !kmFinal || !litros || !preco) {
-    alert("Preencha todos os campos.");
+    alert("Preencha os campos obrigatórios.");
     return;
   }
 
@@ -249,11 +252,12 @@ function salvarRegistro() {
     kmFinal,
     litros,
     preco,
-    statusPlanilha: "✅ Registro salvo no app",
+    tanquePercentual,
+    statusPlanilha: "✅ Registro salvo no app"
   };
 
   if (editandoId) {
-    dados = dados.map((item) => (item.id === editandoId ? registro : item));
+    dados = dados.map((item) => item.id === editandoId ? registro : item);
   } else {
     dados.unshift(registro);
   }
@@ -261,65 +265,52 @@ function salvarRegistro() {
   salvarDados(dados);
   limparFormulario();
   atualizarDashboard();
-  ativarAba("historico");
+  ativarAba("abastecimentos");
 }
 
 function editarRegistro(id) {
   const dados = carregarDados();
-  const item = dados.find((r) => r.id === id);
+  const item = dados.find(r => r.id === id);
   if (!item) return;
 
   editandoId = id;
-  document.getElementById("tituloFormulario").textContent = "Editar abastecimento";
   document.getElementById("data").value = item.data;
   document.getElementById("kmInicio").value = item.kmInicio;
   document.getElementById("kmFinal").value = item.kmFinal;
   document.getElementById("litros").value = item.litros;
   document.getElementById("preco").value = item.preco;
+  document.getElementById("tanquePercentual").value = item.tanquePercentual || 0;
   atualizarPrevia();
-  ativarAba("cadastro");
+  ativarAba("relatorios");
 }
 
 function excluirRegistro(id) {
   if (!confirm("Deseja excluir este abastecimento?")) return;
-  const dados = carregarDados().filter((item) => item.id !== id);
+  const dados = carregarDados().filter(item => item.id !== id);
   salvarDados(dados);
   atualizarDashboard();
 }
 
-function exportarBackup() {
-  const dados = carregarDados();
-  const blob = new Blob([JSON.stringify(dados, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "controle-combustivel-backup.json";
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
 function ativarAba(nome) {
-  document.querySelectorAll(".aba").forEach((el) => el.classList.remove("ativa"));
-  document.querySelectorAll(".tab").forEach((el) => el.classList.remove("ativo"));
+  document.querySelectorAll(".aba").forEach(el => el.classList.remove("ativa"));
+  document.querySelectorAll(".nav-btn").forEach(el => el.classList.remove("ativo"));
 
-  document.getElementById(nome).classList.add("ativa");
-  document.querySelector(`.tab[data-aba="${nome}"]`).classList.add("ativo");
+  document.getElementById(`aba-${nome}`).classList.add("ativa");
+  document.querySelector(`.nav-btn[data-aba="${nome}"]`).classList.add("ativo");
 }
 
-document.querySelectorAll(".tab").forEach((btn) => {
+document.querySelectorAll(".nav-btn").forEach((btn) => {
   btn.addEventListener("click", () => ativarAba(btn.dataset.aba));
 });
 
-["kmInicio", "kmFinal", "litros", "preco"].forEach((id) => {
+["kmInicio", "kmFinal", "litros", "preco", "tanquePercentual"].forEach((id) => {
   document.getElementById(id).addEventListener("input", atualizarPrevia);
 });
 
 document.getElementById("salvarBtn").addEventListener("click", salvarRegistro);
-document.getElementById("limparBtn").addEventListener("click", limparFormulario);
-document.getElementById("exportarBtn").addEventListener("click", exportarBackup);
-
-atualizarPrevia();
-atualizarDashboard();
 
 window.editarRegistro = editarRegistro;
 window.excluirRegistro = excluirRegistro;
+
+atualizarPrevia();
+atualizarDashboard();

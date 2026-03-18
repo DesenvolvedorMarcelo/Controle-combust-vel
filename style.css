@@ -515,3 +515,14 @@ body {
     font-size: 24px;
   }
 }
+@media (min-width: 768px) {
+  .grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .phone-screen {
+    max-width: 1100px;
+  }
+}

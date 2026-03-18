@@ -526,3 +526,10 @@ body {
     max-width: 1100px;
   }
 }
+.tela {
+  display: none;
+}
+
+.tela.ativa {
+  display: block;
+}

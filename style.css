@@ -31,11 +31,11 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Arial, sans-serif;
   background: linear-gradient(180deg, #dfe4ea 0%, #edf2f7 100%);
   color: var(--text);
-  min-height: 50dvh;
+  min-height: 40dvh;
 }
 
 .iphone-shell {
-  min-height: 50dvh;
+  min-height: 80dvh;
   display: flex;
   justify-content: center;
   padding: 12px;
